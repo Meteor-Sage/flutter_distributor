@@ -99,8 +99,43 @@ class MakeAppImageConfig extends MakeConfig {
     return '''
 #!/bin/bash
 
+# Auto-detect OpenGL support and fallback to software rendering if needed
+check_opengl() {
+    if command -v glxinfo &> /dev/null; then
+        local gl_version=\$(glxinfo 2>/dev/null | grep "OpenGL version" | head -1 | sed 's/.*OpenGL version string: \\([0-9]*\\)\\.\\([0-9]*\\).*/\\1\\2/')
+        if [ -n "\$gl_version" ] && [ "\$gl_version" -ge 30 ]; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+is_virtual_machine() {
+    if [ -f /sys/class/dmi/id/product_name ]; then
+        local product=\$(cat /sys/class/dmi/id/product_name 2>/dev/null)
+        case "\$product" in
+            *VMware*|*VirtualBox*|*QEMU*|*KVM*|*Hyper-V*)
+                return 0
+                ;;
+        esac
+    fi
+    if command -v systemd-detect-virt &> /dev/null; then
+        local virt=\$(systemd-detect-virt 2>/dev/null)
+        if [ "\$virt" != "none" ] && [ -n "\$virt" ]; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
 cd "\$(dirname "\$0")"
 export LD_LIBRARY_PATH=usr/lib
+
+if ! check_opengl || is_virtual_machine; then
+    export LIBGL_ALWAYS_SOFTWARE=1
+    echo "Note: Using software rendering mode for better compatibility"
+fi
+
 exec ./$appName
 ''';
   }
