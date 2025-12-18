@@ -38,6 +38,7 @@ class MakeAppImageConfig extends MakeConfig {
     this.categories = const [],
     this.actions = const [],
     this.include = const [],
+    this.supportedMimeType = const [],
     this.startupNotify = true,
     this.genericName = 'A Flutter Application',
   });
@@ -48,6 +49,7 @@ class MakeAppImageConfig extends MakeConfig {
       include: (map['include'] as List<dynamic>? ?? []).cast<String>(),
       keywords: (map['keywords'] as List<dynamic>? ?? []).cast<String>(),
       categories: (map['categories'] as List<dynamic>? ?? []).cast<String>(),
+      supportedMimeType: (map['supported_mime_type'] as List<dynamic>? ?? []).cast<String>(),
       startupNotify: map['startup_notify'] as bool? ?? false,
       genericName: map['generic_name'] as String? ?? 'A Flutter Application',
       actions: (map['actions'] as List? ?? [])
@@ -68,6 +70,7 @@ class MakeAppImageConfig extends MakeConfig {
   final String genericName;
   final String displayName;
   final List<String> include;
+  final List<String> supportedMimeType;
 
   String get desktopFileContent {
     final fields = {
@@ -79,6 +82,7 @@ class MakeAppImageConfig extends MakeConfig {
       'StartupNotify': startupNotify ? 'true' : 'false',
       if (categories.isNotEmpty) 'Categories': categories.join(';'),
       if (keywords.isNotEmpty) 'Keywords': keywords.join(';'),
+      if (supportedMimeType.isNotEmpty) 'MimeType': '${supportedMimeType.join(';')};',
       if (this.actions.isNotEmpty)
         'Actions': this.actions.map((e) => e.label).join(';'),
     }.entries.map((e) => '${e.key}=${e.value}').join('\n');
