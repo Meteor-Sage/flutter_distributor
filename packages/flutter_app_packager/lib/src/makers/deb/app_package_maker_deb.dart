@@ -111,19 +111,30 @@ class AppPackageMakerDeb extends AppPackageMaker {
     final postrmFile = File(path.join(debianDir, 'postrm'));
     final desktopEntryFile =
         File(path.join(applicationsDir, '${makeConfig.appBinaryName}.desktop'));
+    // 创建启动脚本
+    final launcherFile = File(path.join(
+      packagingDirectory.path,
+      'usr/share',
+      makeConfig.appBinaryName,
+      '${makeConfig.appBinaryName}-launcher.sh',
+    ));
 
     if (!controlFile.existsSync()) controlFile.createSync();
     if (!postinstFile.existsSync()) postinstFile.createSync();
     if (!postrmFile.existsSync()) postrmFile.createSync();
     if (!desktopEntryFile.existsSync()) desktopEntryFile.createSync();
+    if (!launcherFile.existsSync()) launcherFile.createSync(recursive: true);
 
     await controlFile.writeAsString(files['CONTROL']!);
     await desktopEntryFile.writeAsString(files['DESKTOP']!);
     await postinstFile.writeAsString(files['postinst']!);
     await postrmFile.writeAsString(files['postrm']!);
+    if (files['launcher'] != null) {
+      await launcherFile.writeAsString(files['launcher']!);
+    }
 
     // give execution permission to shell scripts
-    await $('chmod', ['+x', postinstFile.path, postrmFile.path]);
+    await $('chmod', ['+x', postinstFile.path, postrmFile.path, launcherFile.path]);
 
     // copy the application binary to /usr/share/$appBinaryName
     await $('cp', [

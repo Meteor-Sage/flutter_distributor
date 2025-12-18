@@ -255,8 +255,10 @@ class MakeDebConfig extends MakeLinuxPackageConfig {
   List<String>? categories;
 
   List<String> get postinstallScripts => [
-        'ln -s /usr/share/$appBinaryName/$appBinaryName /usr/bin/$appBinaryName',
-        'chmod +x /usr/bin/$appBinaryName',
+        // 创建启动脚本的符号链接
+        'ln -sf /usr/share/$appBinaryName/$appBinaryName-launcher.sh /usr/bin/$appBinaryName',
+        'chmod +x /usr/share/$appBinaryName/$appBinaryName-launcher.sh',
+        'chmod +x /usr/share/$appBinaryName/$appBinaryName',
         ..._postinstallScripts,
       ];
 
@@ -330,9 +332,56 @@ class MakeDebConfig extends MakeLinuxPackageConfig {
             (e) => '${e.key}=${e.value}',
           ),
     ].join('\n');
+
+    // 创建启动脚本，用于自动检测 OpenGL 环境并启用软件渲染
+    final launcherScript = '''#!/usr/bin/env bash
+# Auto-generated launcher script for $appBinaryName
+# This script detects OpenGL support and enables software rendering if needed
+
+APP_DIR="/usr/share/$appBinaryName"
+EXECUTABLE="\$APP_DIR/$appBinaryName"
+
+# Function to check if OpenGL is working
+check_opengl() {
+    # Check if we can use hardware acceleration
+    if command -v glxinfo &> /dev/null; then
+        if glxinfo 2>&1 | grep -q "direct rendering: Yes"; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Function to detect if running in a virtual machine
+is_virtual_machine() {
+    if command -v systemd-detect-virt &> /dev/null; then
+        local virt_type=\$(systemd-detect-virt 2>/dev/null)
+        if [ "\$virt_type" != "none" ] && [ -n "\$virt_type" ]; then
+            return 0
+        fi
+    fi
+    
+    # Fallback: check for common VM indicators
+    if grep -qE "(VMware|VirtualBox|QEMU|Hyper-V|Xen)" /sys/class/dmi/id/product_name 2>/dev/null; then
+        return 0
+    fi
+    
+    return 1
+}
+
+# Auto-detect and set software rendering if needed
+if is_virtual_machine || ! check_opengl; then
+    export LIBGL_ALWAYS_SOFTWARE=1
+fi
+
+# Execute the application
+exec "\$EXECUTABLE" "\$@"
+''';
+
     final map = {
       'CONTROL': controlFile,
       'DESKTOP': desktopFile,
+      'launcher': launcherScript,
       'postinst': postinstallScripts.isNotEmpty
           ? [
               '#!/usr/bin/env sh',
