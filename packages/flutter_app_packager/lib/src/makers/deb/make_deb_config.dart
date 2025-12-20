@@ -251,8 +251,51 @@ class MakeDebConfig extends MakeLinuxPackageConfig {
   List<String>? actions;
   List<String>? categories;
 
+  /// Wrapper script content with OpenGL auto-detection
+  String get _wrapperScriptContent => r'''#!/bin/bash
+# Auto-detect OpenGL support and fallback to software rendering if needed
+check_opengl() {
+    if command -v glxinfo &> /dev/null; then
+        local gl_version=$(glxinfo 2>/dev/null | grep "OpenGL version" | head -1 | sed 's/.*OpenGL version string: \([0-9]*\)\.\([0-9]*\).*/\1\2/')
+        if [ -n "$gl_version" ] && [ "$gl_version" -ge 30 ]; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+is_virtual_machine() {
+    if [ -f /sys/class/dmi/id/product_name ]; then
+        local product=$(cat /sys/class/dmi/id/product_name 2>/dev/null)
+        case "$product" in
+            *VMware*|*VirtualBox*|*QEMU*|*KVM*|*Hyper-V*)
+                return 0
+                ;;
+        esac
+    fi
+    if command -v systemd-detect-virt &> /dev/null; then
+        local virt=$(systemd-detect-virt 2>/dev/null)
+        if [ "$virt" != "none" ] && [ -n "$virt" ]; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+if ! check_opengl || is_virtual_machine; then
+    export LIBGL_ALWAYS_SOFTWARE=1
+fi
+
+exec /usr/share/''' +
+      appBinaryName +
+      '/' +
+      appBinaryName +
+      r''' "$@"
+''';
+
   List<String> get postinstallScripts => [
-        'ln -s /usr/share/$appBinaryName/$appBinaryName /usr/bin/$appBinaryName',
+        // Create wrapper script instead of symlink
+        "cat > /usr/bin/$appBinaryName << 'WRAPPER_EOF'\n${_wrapperScriptContent}WRAPPER_EOF",
         'chmod +x /usr/bin/$appBinaryName',
         ..._postinstallScripts,
       ];
